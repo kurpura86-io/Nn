@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Карта с объектами</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { height: 100vh; width: 100%; }
+
+        .controls {
+            position: absolute; top: 10px; left: 50px; z-index: 1000;
+            display: flex; gap: 5px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 5px; border-radius: 4px; border: 2px solid rgba(0,0,0,0.2);
+        }
+
+        button {
+            padding: 4px 8px; font-size: 12px; cursor: pointer;
+            background: #fff; border: 1px solid #ccc; border-radius: 3px;
+            transition: background 0.2s;
+        }
+
+        button:hover { background: #f4f4f4; }
+        button.active { background: #e0f0ff; border-color: #007bff; font-weight: bold; }
+
+        .btn-clear { color: #d32f2f; border-color: #ffcdd2; }
+        .btn-clear:hover { background: #ffebee; }
+
+        #btn-toggle-ui {
+            position: absolute; top: 10px; left: 10px; z-index: 1001;
+            width: 30px; height: 30px; cursor: pointer;
+            background: #fff; border: 2px solid rgba(0,0,0,0.2);
+            border-radius: 4px; font-weight: bold;
+        }
+
+        .hidden { display: none !important; }
+
+        .obj-icon {
+            transition: transform 0.2s ease;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <button id="btn-toggle-ui" onclick="toggleUI()">А</button>
+
+    <div class="controls" id="main-controls">
+        <button id="btn-su34" onclick="selectObject('su34')">1 (СУ-34)</button>
+        <button id="btn-kab" onclick="selectObject('kab')">2 (КАБ)</button>
+        <button class="btn-clear" onclick="clearMap()">Очистить</button>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        const map = L.map('map').setView([48.5, 37.5], 7);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // 🔥 ЛОКАЛЬНЫЕ PNG ИЗ ПАПКИ images
+        const icons = {
+            su34: 'images/SU-34.png',
+            kab: 'images/KAB.png'
+        };
+
+        let activeType = null;
+        let currentMarker = null;
+        let markersLayer = L.layerGroup().addTo(map);
+
+        fetch('deepstate.geojson')
+            .then(res => res.json())
+            .then(data => {
+                L.geoJSON(data, {
+                    style: { 
+                        color: "transparent",
+                        weight: 0,
+                        fillOpacity: 0.25,
+                        fillColor: "red"
+                    }
+                }).addTo(map);
+            })
+            .catch(() => console.log("Файл deepstate.geojson не найден"));
+
+        function selectObject(type) {
+            activeType = type;
+            currentMarker = null;
+
+            document.querySelectorAll('.controls button')
+                .forEach(b => b.classList.remove('active'));
+
+            const btn = document.getElementById('btn-' + type);
+            if (btn) btn.classList.add('active');
+        }
+
+        function clearMap() {
+            markersLayer.clearLayers();
+            currentMarker = null;
+        }
+
+        map.on('click', function(e) {
+            if (!activeType) return;
+
+            if (!currentMarker) {
+                const html = `<img src="${icons[activeType]}" class="obj-icon" style="width:30px; height:30px; transform: rotate(0deg);">`;
+
+                const icon = L.divIcon({
+                    className: '',
+                    html: html,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+
+                currentMarker = L.marker(e.latlng, { icon }).addTo(markersLayer);
+
+            } else {
+                const p1 = map.latLngToContainerPoint(currentMarker.getLatLng());
+                const p2 = map.latLngToContainerPoint(e.latlng);
+
+                const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+
+                const img = currentMarker.getElement().querySelector('img');
+                if (img) img.style.transform = `rotate(${angle + 90}deg)`;
+
+                currentMarker = null;
+            }
+        });
+
+        function toggleUI() {
+            document.getElementById('main-controls').classList.toggle('hidden');
+        }
+    </script>
+
+</body>
+</html>
